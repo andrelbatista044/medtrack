@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MedTrack — sua rotina, no ritmo certo</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="login-page">
+    <section class="hero">
+      <div class="brand"><span class="brandmark">✚</span>MedTrack</div>
+      <h1>Cuidado diário, com mais leveza.</h1>
+      <p>Organize medicamentos, confirme doses e entenda sua rotina em um só lugar — sem complicação e sem substituir sua orientação médica.</p>
+    </section>
+    <section class="auth-wrap">
+      <div class="auth-card">
+        <div class="eyebrow">Bem-vindo</div>
+        <h2 id="title">Entre na sua conta</h2>
+        <p class="muted">Acompanhe sua rotina com tranquilidade.</p>
+        <div id="error" class="error" role="alert"></div>
+        <form id="form">
+          <div class="field" id="name-field" hidden>
+            <label for="user-name">Seu nome</label>
+            <input id="user-name" autocomplete="name" minlength="2">
+          </div>
+          <div class="field">
+            <label for="email">E-mail</label>
+            <input id="email" type="email" required autocomplete="email">
+          </div>
+          <div class="field">
+            <label for="password">Senha</label>
+            <input id="password" type="password" minlength="8" required autocomplete="current-password">
+          </div>
+          <button class="btn" id="submit" type="submit">Entrar</button>
+        </form>
+        <div class="auth-switch">
+          <span id="switch-label">Ainda não tem conta?</span>
+          <button id="switch" type="button">Criar conta</button>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script src="/js/api.js"></script>
+  <script>
+    if(API.token) location.href='/dashboard.html';
+    let signup=false;
+    const form=document.querySelector('#form');
+    const nameInput=document.querySelector('#user-name');
+    const emailInput=document.querySelector('#email');
+    const passwordInput=document.querySelector('#password');
+    const errorBox=document.querySelector('#error');
+
+    document.querySelector('#switch').onclick=()=>{
+      signup=!signup;
+      document.querySelector('#name-field').hidden=!signup;
+      nameInput.required=signup;
+      passwordInput.autocomplete=signup?'new-password':'current-password';
+      document.querySelector('#title').textContent=signup?'Crie sua conta':'Entre na sua conta';
+      document.querySelector('#submit').textContent=signup?'Começar agora':'Entrar';
+      document.querySelector('#switch').textContent=signup?'Fazer login':'Criar conta';
+      document.querySelector('#switch-label').textContent=signup?'Já tem uma conta?':'Ainda não tem conta?';
+      errorBox.style.display='none';
+    };
+
+    form.onsubmit=async event=>{
+      event.preventDefault();
+      errorBox.style.display='none';
+      try{
+        const body={email:emailInput.value.trim(),password:passwordInput.value};
+        if(signup) body.name=nameInput.value.trim();
+        const data=await API.request(signup?'/users':'/login',{method:'POST',body:JSON.stringify(body)});
+        API.setToken(data.token);
+        location.href='/dashboard.html';
+      }catch(error){
+        errorBox.textContent=error.message;
+        errorBox.style.display='block';
+      }
+    };
+  </script>
+</body>
+</html>
