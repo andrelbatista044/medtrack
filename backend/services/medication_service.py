@@ -3,6 +3,7 @@ from datetime import date, datetime, time, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from ..models import Dose, Medication
+from ..time_utils import local_now, local_today
 
 
 def medication_dict(item: Medication) -> dict:
@@ -20,7 +21,7 @@ def dose_dict(item: Dose) -> dict:
 
 
 def ensure_doses(db: Session, user_id: int, start: date | None = None, days: int = 7) -> int:
-    start = start or date.today()
+    start = start or local_today()
     meds = db.scalars(select(Medication).where(Medication.user_id == user_id, Medication.active.is_(True))).all()
     created = 0
     for medication in meds:
@@ -40,9 +41,8 @@ def ensure_doses(db: Session, user_id: int, start: date | None = None, days: int
 
 
 def refresh_late_statuses(db: Session, user_id: int) -> None:
-    cutoff = datetime.now() - timedelta(minutes=30)
+    cutoff = local_now() - timedelta(minutes=30)
     doses = db.scalars(select(Dose).where(Dose.user_id == user_id, Dose.status == "PENDING", Dose.scheduled_at < cutoff)).all()
     for dose in doses:
         dose.status = "LATE"
     db.commit()
-

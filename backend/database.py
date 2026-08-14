@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     secret_key: str = "dev-only-change-me"
     telegram_bot_token: str = ""
     app_base_url: str = "http://localhost:8000"
+    app_timezone: str = "America/Sao_Paulo"
     cron_secret: str = ""
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

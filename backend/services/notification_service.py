@@ -1,14 +1,24 @@
 from datetime import datetime, timedelta
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 from ..models import Caregiver, Dose, User
+from ..time_utils import local_now
+from .medication_service import ensure_doses
 from .telegram_service import send_message
 
 
 async def process_due_notifications(db: Session) -> dict:
-    now = datetime.now()
-    window = now + timedelta(minutes=5)
-    doses = db.scalars(select(Dose).where(Dose.status.in_(["PENDING", "LATE"]), Dose.notification_sent_at.is_(None), Dose.scheduled_at <= window)).all()
+    now = local_now()
+    created = 0
+    for user_id in db.scalars(select(User.id)).all():
+        created += ensure_doses(db, user_id, now.date(), 2)
+
+    doses = db.scalars(select(Dose).where(
+        Dose.status.in_(["PENDING", "LATE"]),
+        Dose.notification_sent_at.is_(None),
+        Dose.scheduled_at <= now,
+        or_(Dose.snoozed_until.is_(None), Dose.snoozed_until <= now),
+    )).all()
     sent = 0
     for dose in doses:
         user = db.get(User, dose.user_id)
@@ -25,5 +35,4 @@ async def process_due_notifications(db: Session) -> dict:
                 if caregiver.telegram_chat_id:
                     await send_message(caregiver.telegram_chat_id, f"🔴 Uma dose de {dose.medication.name} está atrasada e ainda não foi confirmada.")
     db.commit()
-    return {"processed": len(doses), "sent": sent}
-
+    return {"created": created, "processed": len(doses), "sent": sent}

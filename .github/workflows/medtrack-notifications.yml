@@ -1,0 +1,19 @@
+name: MedTrack notifications
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Process due medication reminders
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: >-
+          curl --fail --silent --show-error
+          --request POST
+          --header "Authorization: Bearer ${CRON_SECRET}"
+          https://medtrack-nu-gilt.vercel.app/api/cron/notifications

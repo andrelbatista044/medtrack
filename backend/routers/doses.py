@@ -7,6 +7,7 @@ from ..models import Dose, Medication, User
 from ..schemas import SnoozeIn
 from ..security import current_user
 from ..services.medication_service import dose_dict, ensure_doses, refresh_late_statuses
+from ..time_utils import local_now, local_today
 
 router = APIRouter(prefix="/api", tags=["doses"])
 
@@ -19,7 +20,7 @@ def owned_dose(db: Session, dose_id: int, user_id: int) -> Dose:
 
 @router.get("/doses")
 def doses(day: date | None = None, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    day = day or date.today(); ensure_doses(db, user.id, day, 1); refresh_late_statuses(db, user.id)
+    day = day or local_today(); ensure_doses(db, user.id, day, 1); refresh_late_statuses(db, user.id)
     items = db.scalars(select(Dose).where(Dose.user_id == user.id, Dose.scheduled_at >= datetime.combine(day, time.min),
                                           Dose.scheduled_at <= datetime.combine(day, time.max)).order_by(Dose.scheduled_at)).all()
     return [dose_dict(x) for x in items]
@@ -30,7 +31,7 @@ def change_status(dose_id: int, status: str, user: User = Depends(current_user),
     mapping = {"taken": "TAKEN", "late": "LATE", "missed": "MISSED", "skipped": "SKIPPED"}
     if status not in mapping: raise HTTPException(422, "Status inválido")
     dose = owned_dose(db, dose_id, user.id); dose.status = mapping[status]
-    dose.confirmed_at = datetime.now() if status in ("taken", "late") else None
+    dose.confirmed_at = local_now() if status in ("taken", "late") else None
     if status == "taken" and dose.confirmed_at > dose.scheduled_at + timedelta(minutes=30): dose.status = "LATE"
     if dose.status in ("TAKEN", "LATE") and dose.medication.quantity > 0: dose.medication.quantity -= 1
     db.commit(); return dose_dict(dose)
@@ -38,7 +39,7 @@ def change_status(dose_id: int, status: str, user: User = Depends(current_user),
 
 @router.post("/doses/{dose_id}/snooze")
 def snooze(dose_id: int, data: SnoozeIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    dose = owned_dose(db, dose_id, user.id); dose.snoozed_until = datetime.now() + timedelta(minutes=data.minutes)
+    dose = owned_dose(db, dose_id, user.id); dose.snoozed_until = local_now() + timedelta(minutes=data.minutes)
     dose.notification_sent_at = None; db.commit(); return dose_dict(dose)
 
 
@@ -55,8 +56,8 @@ def history(start: date | None = None, end: date | None = None, medication_id: i
 
 @router.get("/adherence")
 def adherence(days: int = Query(30, ge=1, le=365), user: User = Depends(current_user), db: Session = Depends(get_db)):
-    since = datetime.now() - timedelta(days=days)
-    items = db.scalars(select(Dose).where(Dose.user_id == user.id, Dose.scheduled_at >= since, Dose.scheduled_at <= datetime.now())).all()
+    now = local_now(); since = now - timedelta(days=days)
+    items = db.scalars(select(Dose).where(Dose.user_id == user.id, Dose.scheduled_at >= since, Dose.scheduled_at <= now)).all()
     counts = {key: 0 for key in ("TAKEN", "LATE", "MISSED", "SKIPPED", "PENDING")}
     daily = {}
     for item in items:
@@ -72,7 +73,7 @@ def adherence(days: int = Query(30, ge=1, le=365), user: User = Depends(current_
 
 @router.get("/insights")
 def insights(user: User = Depends(current_user), db: Session = Depends(get_db)):
-    since = datetime.now() - timedelta(days=30)
+    since = local_now() - timedelta(days=30)
     items = db.scalars(select(Dose).where(Dose.user_id == user.id, Dose.scheduled_at >= since, Dose.status.in_(["LATE", "MISSED"]))).all()
     if not items: return {"insights": ["Ainda não há registros suficientes para identificar padrões na rotina."]}
     hours = {}; meds = {}; weekdays = {}
@@ -84,4 +85,3 @@ def insights(user: User = Depends(current_user), db: Session = Depends(get_db)):
     return {"insights": [f"O horário das {hour:02d}:00 concentrou mais atrasos ou esquecimentos nos últimos 30 dias.",
                            f"{med} foi o medicamento com mais registros de atraso ou esquecimento no período."],
             "disclaimer": "Análise exclusiva dos registros; não altera nem recomenda tratamento."}
-
