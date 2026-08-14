@@ -4,7 +4,12 @@ let items = [];
 const medicationForm = document.querySelector('#form');
 const medicationModal = document.querySelector('#modal');
 const fields = Object.fromEntries(['name','dosage','times','frequency','quantity','start_date','end_date','notes'].map(id => [id, document.querySelector(`#${id}`)]));
-fields.start_date.value = new Date().toISOString().slice(0, 10);
+const localDateValue = () => {
+  const now = new Date();
+  const offset = now.getTimezoneOffset() * 60 * 1000;
+  return new Date(now.getTime() - offset).toISOString().slice(0, 10);
+};
+fields.start_date.value = localDateValue();
 
 async function load() {
   try {
@@ -16,7 +21,7 @@ async function load() {
 function openModal() { medicationModal.classList.add('open'); fields.name.focus(); }
 function closeModal() {
   medicationModal.classList.remove('open'); medicationForm.reset();
-  fields.start_date.value = new Date().toISOString().slice(0, 10);
+  fields.start_date.value = localDateValue();
   fields.frequency.value = 'Todos os dias'; fields.quantity.value = 0; editing = null;
 }
 function editMedication(id) {
